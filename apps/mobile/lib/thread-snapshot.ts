@@ -32,5 +32,15 @@ export function reconcileVisibleThreadSnapshot(
   if (previous === next || !previous || !next) return next;
   const { cursor: _previousCursor, ...previousVisible } = previous;
   const { cursor: _nextCursor, ...nextVisible } = next;
-  return equalValue(previousVisible, nextVisible) ? previous : next;
+  if (equalValue(previousVisible, nextVisible)) return previous;
+  // A polled snapshot rebuilds every message; keep unchanged ones so their memoised rows skip.
+  const previousById = new Map(previous.messages.map((message) => [message.id, message]));
+  let reused = false;
+  const messages = next.messages.map((message) => {
+    const earlier = previousById.get(message.id);
+    if (!earlier || !equalValue(earlier, message)) return message;
+    reused = true;
+    return earlier;
+  });
+  return reused ? { ...next, messages } : next;
 }
