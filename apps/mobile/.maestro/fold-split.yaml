@@ -40,6 +40,13 @@ name: Rakazo unfolded split view
 - waitForAnimationToEnd
 - takeScreenshot: "fold-02-researcher"
 
+# Holding a message opens the reaction row and grouped actions next to it.
+- longPressOn: "Summarize the fixture launch checklist."
+- waitForAnimationToEnd
+- takeScreenshot: "fold-02b-message-menu"
+- tapOn: "Copy"
+- waitForAnimationToEnd
+
 # Switching chats beside the list should swap in place, with no screen sliding in.
 - tapOn:
     text: "Writer"
