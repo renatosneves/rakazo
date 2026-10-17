@@ -1,0 +1,75 @@
+name: fold7-test-apk
+
+# Builds a side-by-side "Rakazo Fold7" test APK from this branch and publishes it on the
+# rolling "fold7" release, so it can be installed on a phone without a computer.
+on:
+  push:
+    branches: [fold7-apk]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fold7-test-apk
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947 # v4.4.3
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Separate package and name so it installs next to the store app, and no OTA updates,
+      # which would replace this build's code with the published bundle.
+      - name: Make it a side-by-side test app
+        working-directory: apps/mobile
+        run: |
+          jq '.expo.name = "Rakazo Fold7"
+            | .expo.android.package = "com.rakazo.app.fold7"
+            | .expo.updates.enabled = false' app.json > app.json.tmp
+          mv app.json.tmp app.json
+
+      - name: Generate Android project
+        run: |
+          pnpm --filter @rakazo/mobile exec expo prebuild --platform android --no-install
+          sed -i 's/MaxMetaspaceSize=512m/MaxMetaspaceSize=1g/; s/-Xmx[0-9]*[mMgG]/-Xmx6g/' \
+            apps/mobile/android/gradle.properties
+
+      - name: Build APK
+        working-directory: apps/mobile/android
+        env:
+          NODE_ENV: production
+        run: ./gradlew app:packageRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
+
+      - name: Publish rolling release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk rakazo-fold7.apk
+          gh release delete fold7 --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
+          gh release create fold7 rakazo-fold7.apk --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --title "Rakazo Fold7 test build" --latest=false \
+            --notes "Test build of the foldable layout. Installs next to the regular Rakazo app."
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: rakazo-fold7-apk
+          path: rakazo-fold7.apk
