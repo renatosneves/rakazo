@@ -209,6 +209,11 @@ async function seedFixture(app: App, prisma: PrismaClient) {
     notifyOnFinish: true,
   });
   await rpc(app, cookie, "bots/archive", { botId: archived.id });
+  if (process.env.MOBILE_FLOWS?.includes("fold-split")) {
+    for (const botId of [writer.id, support.id]) {
+      await rpc(app, cookie, "bots/update", { botId, pinned: true });
+    }
+  }
 
   const group = await rpc<{ id: string }>(app, cookie, "groups/create", {
     name: "Launch team",
