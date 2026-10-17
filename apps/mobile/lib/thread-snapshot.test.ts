@@ -108,11 +108,37 @@ describe("visible thread snapshot publication", () => {
       ],
     };
     const reordered = { ...messages, messages: [...messages.messages].reverse() };
-    expect(reconcileVisibleThreadSnapshot(messages, reordered)).toBe(reordered);
+    const publishedOrder = reconcileVisibleThreadSnapshot(messages, reordered);
+    expect(publishedOrder).not.toBe(messages);
+    expect(publishedOrder).toEqual(reordered);
     const edited = structuredClone(messages);
     edited.messages[0]!.blocks = [{ kind: "text", text: "Edited" }];
-    expect(reconcileVisibleThreadSnapshot(messages, edited)).toBe(edited);
+    const publishedEdit = reconcileVisibleThreadSnapshot(messages, edited);
+    expect(publishedEdit).not.toBe(messages);
+    expect(publishedEdit).toEqual(edited);
     expect(reconcileVisibleThreadSnapshot(null, previous)).toBe(previous);
     expect(reconcileVisibleThreadSnapshot(previous, null)).toBeNull();
+  });
+
+  it("keeps unchanged messages from a polled snapshot so only edited rows redraw", () => {
+    const previous: MobileSnapshot = {
+      ...snapshot(),
+      messages: [
+        { id: "message-1", role: "user", blocks: [{ kind: "text", text: "Hi" }] },
+        { id: "message-2", role: "bot", blocks: [{ kind: "text", text: "Hel" }] },
+      ],
+    };
+    // A poll parses fresh JSON, so even unchanged messages arrive as new objects.
+    const polled = structuredClone(previous);
+    polled.cursor = 7;
+    polled.messages[1]!.blocks = [{ kind: "text", text: "Hello" }];
+    polled.messages.push({ id: "message-3", role: "bot", blocks: [{ kind: "text", text: "!" }] });
+
+    const published = reconcileVisibleThreadSnapshot(previous, polled)!;
+
+    expect(published).toEqual(polled);
+    expect(published.messages[0]).toBe(previous.messages[0]);
+    expect(published.messages[1]).toBe(polled.messages[1]);
+    expect(published.messages[2]).toBe(polled.messages[2]);
   });
 });
