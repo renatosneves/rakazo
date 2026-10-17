@@ -1489,26 +1489,53 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
   useEffect(() => {
     if (!botId && !groupId) return;
     let cancelled = false;
+    let inFlight = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const refreshDelay = () =>
       threadRefreshDelayMs(snap?.run?.status, { liveSubscribed: liveSubscribed.current });
     const tick = async () => {
-      if (
-        AppState.currentState === "active" &&
-        navigation.isFocused() &&
-        !jumpScrollTarget.current &&
-        !expandedHistoryThread.current
-      ) {
-        await refresh().catch(() => undefined);
+      inFlight = true;
+      try {
+        if (
+          AppState.currentState === "active" &&
+          navigation.isFocused() &&
+          !jumpScrollTarget.current &&
+          !expandedHistoryThread.current
+        ) {
+          await refresh().catch(() => undefined);
+        }
+      } finally {
+        inFlight = false;
       }
       if (!cancelled) {
         timer = setTimeout(() => void tick(), refreshDelay());
       }
     };
+    // The safety poll is slow while subscribed, so catch up at once when the chat is seen again.
+    const refreshNow = () => {
+      if (cancelled || inFlight) return;
+      if (timer !== undefined) clearTimeout(timer);
+      void tick();
+    };
+    const appState = AppState.addEventListener("change", (state) => {
+      if (state === "active") refreshNow();
+    });
+    // Only a return from another screen: the first focus already has the opening snapshot.
+    let left = false;
+    const removeBlur = navigation.addListener("blur", () => {
+      left = true;
+    });
+    const removeFocus = navigation.addListener("focus", () => {
+      if (left) refreshNow();
+      left = false;
+    });
     timer = setTimeout(() => void tick(), refreshDelay());
     return () => {
       cancelled = true;
       if (timer !== undefined) clearTimeout(timer);
+      appState.remove();
+      removeBlur();
+      removeFocus();
     };
   }, [botId, groupId, navigation, snap?.run?.status]);
 
