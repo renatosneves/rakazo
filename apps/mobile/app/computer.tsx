@@ -549,8 +549,10 @@ export function ComputerSurface({
           </View>
         ) : computer?.state === "running" && embeddedScreenUrl && !screenError ? (
           <ScreenWebView
+            key={screenReload}
             url={embeddedScreenUrl}
             interactive={false}
+            onRendererLost={() => void reloadScreen()}
             onError={() => {
               refreshController.invalidateScreen();
               setScreenError(
