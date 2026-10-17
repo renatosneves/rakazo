@@ -16,6 +16,8 @@ const catalogs: Partial<Record<UiLocale, Record<string, string>>> = {
 };
 
 let activeLocale: UiLocale = "en";
+/** The device's own language tag, which can be one the UI has no catalog for. */
+let deviceLanguageTag: string | null = null;
 const listeners = new Set<() => void>();
 
 function emit(): void {
@@ -31,6 +33,11 @@ export function subscribeI18n(listener: () => void): () => void {
 
 export function getActiveUiLocale(): UiLocale {
   return activeLocale;
+}
+
+/** The language the person speaks, for speech recognition: the device's, else the UI's. */
+export function getSpeechLanguage(): string {
+  return deviceLanguageTag ?? readDeviceLanguage() ?? dateLocaleForUi();
 }
 
 export function dateLocaleForUi(locale: UiLocale = activeLocale): string {
@@ -92,6 +99,7 @@ export async function bootstrapI18n(): Promise<UiLocale> {
   } catch {
     // Keep Intl fallback.
   }
+  deviceLanguageTag = deviceLanguage;
   const envDefault =
     typeof process !== "undefined" && typeof process.env.EXPO_PUBLIC_DEFAULT_UI_LOCALE === "string"
       ? process.env.EXPO_PUBLIC_DEFAULT_UI_LOCALE
