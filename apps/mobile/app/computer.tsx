@@ -55,8 +55,12 @@ import { errorText } from "../lib/user-error";
 import { useTabletopPosture } from "../lib/window-posture";
 
 export default function ComputerRoute() {
-  const { botId, name } = useLocalSearchParams<{ botId?: string; name?: string }>();
-  return <ComputerSurface botId={botId} name={name} />;
+  const { botId, name, open } = useLocalSearchParams<{
+    botId?: string;
+    name?: string;
+    open?: string;
+  }>();
+  return <ComputerSurface botId={botId} name={name} startOpen={open === "1"} />;
 }
 
 /**
@@ -67,10 +71,16 @@ export function ComputerSurface({
   botId,
   name: nameParam,
   onClose,
+  onExpand,
+  startOpen = false,
 }: {
   botId?: string;
   name?: string;
   onClose?: () => void;
+  /** Docked only: moves the computer from beside the chat to the full window. */
+  onExpand?: () => void;
+  /** Opens straight into the full window, as when a docked computer is expanded. */
+  startOpen?: boolean;
 }) {
   const docked = Boolean(onClose);
   const posture = useTabletopPosture();
@@ -88,7 +98,7 @@ export function ComputerSurface({
   const [switchingCount, setSwitchingCount] = useState(0);
   const booting = bootingCount > 0;
   const switching = switchingCount > 0;
-  const [windowOpen, setComputerOpen] = useState(false);
+  const [windowOpen, setComputerOpen] = useState(startOpen);
   const computerOpen = docked || windowOpen;
   const autoBooted = useRef<string | null>(null);
   const screenWebViewRef = useRef<WebView>(null);
@@ -176,11 +186,11 @@ export function ComputerSurface({
     setReadyBotId(null);
     setBootingCount(0);
     setSwitchingCount(0);
-    setComputerOpen(false);
+    setComputerOpen(startOpen);
     autoBooted.current = null;
     if (botId) refreshController.start();
     return () => refreshController.dispose();
-  }, [botId, refreshController]);
+  }, [botId, refreshController, startOpen]);
 
   async function bootComputer({
     takeControl,
@@ -321,7 +331,13 @@ export function ComputerSurface({
 
   const placeholder =
     screenError ?? previewPlaceholder(computer?.state, booting, name, computer?.mode);
-  const closeComputer = onClose ?? (() => setComputerOpen(false));
+  // Expanded from beside the chat, closing the full window goes back to that chat.
+  const closeComputer =
+    onClose ??
+    (() => {
+      if (startOpen && navigation.canGoBack()) navigation.goBack();
+      else setComputerOpen(false);
+    });
   const tabletop = posture.tabletop && !docked;
 
   const fullWindow = booting ? (
@@ -438,6 +454,16 @@ export function ComputerSurface({
                 }
               />
             )}
+            {onExpand ? (
+              <GlassIconButton
+                accessibilityLabel={t("Open in full window")}
+                onPress={onExpand}
+                ios="arrow.up.left.and.arrow.down.right"
+                android="expand-outline"
+                size={36}
+                iconSize={16}
+              />
+            ) : null}
             <GlassIconButton
               accessibilityLabel={t("Close computer")}
               onPress={closeComputer}
@@ -598,7 +624,7 @@ export function ComputerSurface({
         presentationStyle="fullScreen"
         supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
         onRequestClose={() => {
-          if (!booting) setComputerOpen(false);
+          if (!booting) closeComputer();
         }}
       >
         <SafeAreaProvider initialMetrics={initialWindowMetrics}>{fullWindow}</SafeAreaProvider>

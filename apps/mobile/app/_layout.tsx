@@ -4,7 +4,14 @@ import {
   MarkdownLinkPromptProvider,
   RemoteImagesContext,
 } from "@rakazo/chat-ui/native";
-import { DarkTheme, Stack, ThemeProvider, useGlobalSearchParams, usePathname } from "expo-router";
+import {
+  DarkTheme,
+  Stack,
+  ThemeProvider,
+  useGlobalSearchParams,
+  usePathname,
+  useRouter,
+} from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import type { ReactNode } from "react";
@@ -76,6 +83,7 @@ function SplitFrame({ children }: { children: ReactNode }) {
   const { split, inboxHidden, inboxWidth, windowWidth, dockedComputer, computerWidth } =
     useSplitView();
   const { botId: openBotId } = useGlobalSearchParams<{ botId?: string }>();
+  const router = useRouter();
   const tokens = useMobileTokens();
   const home = pathname === "/";
   useEffect(() => {
@@ -134,6 +142,11 @@ function SplitFrame({ children }: { children: ReactNode }) {
             botId={dockedComputer.botId}
             name={dockedComputer.name}
             onClose={() => dockComputer(null)}
+            onExpand={() => {
+              const { botId, name } = dockedComputer;
+              dockComputer(null);
+              router.push({ pathname: "/computer", params: { botId, name, open: "1" } });
+            }}
           />
         </View>
       ) : null}
