@@ -7,7 +7,7 @@ import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import Computer from "../app/computer";
+import Computer, { ComputerSurface } from "../app/computer";
 
 const rpc = vi.hoisted(() => vi.fn());
 const textScale = vi.hoisted(() => ({ fontScale: 1 }));
@@ -113,6 +113,10 @@ vi.mock("react-native-safe-area-context", () => {
 vi.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ botId: "bot-1", name: "Basil" }),
   useNavigation: () => ({ setOptions: () => undefined }),
+}));
+
+vi.mock("../lib/window-posture", () => ({
+  useTabletopPosture: () => ({ tabletop: false, hingeTop: 0, hingeBottom: 0 }),
 }));
 
 vi.mock("../lib/orientation", () => ({
@@ -433,5 +437,25 @@ describe("computer screen", () => {
     expect(view.querySelector("section iframe")?.getAttribute("data-elements-hidden")).toBe(
       "false",
     );
+  });
+
+  it("shows the desktop at once when docked beside the chat, and closing undocks it", async () => {
+    respond({ ...botWorking, busyBotName: null });
+    const onClose = vi.fn();
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    act(() => {
+      root?.render(<ComputerSurface botId="bot-1" name="Basil" onClose={onClose} />);
+    });
+    await settle();
+
+    expect(container.querySelector("section")).toBeNull();
+    expect(container.querySelectorAll("iframe")).toHaveLength(1);
+    expect(calls("computer/takeover")).toEqual([]);
+    await act(async () =>
+      container?.querySelector<HTMLElement>('[aria-label="Close computer"]')?.click(),
+    );
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

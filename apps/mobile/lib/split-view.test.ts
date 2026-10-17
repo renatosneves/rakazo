@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("react-native", () => ({ useWindowDimensions: () => ({ width: 0, height: 0 }) }));
 vi.mock("expo-secure-store", () => ({ getItemAsync: vi.fn(), setItemAsync: vi.fn() }));
 
-const { inboxPaneWidth, splitsWindow } = await import("./split-view");
+const { computerPaneWidth, inboxPaneWidth, splitsWindow } = await import("./split-view");
 
 describe("split view", () => {
   it("splits an unfolded foldable or a tablet, not a phone or a half-screen window", () => {
@@ -23,5 +23,11 @@ describe("split view", () => {
     expect(inboxPaneWidth(750, 320)).toBe(320);
     expect(inboxPaneWidth(750, 100)).toBe(240);
     expect(inboxPaneWidth(750, 600)).toBe(390);
+  });
+
+  it("gives a docked computer most of the window and keeps a chat column", () => {
+    expect(computerPaneWidth(700)).toBe(400);
+    expect(computerPaneWidth(750)).toBe(435);
+    expect(computerPaneWidth(1000)).toBe(580);
   });
 });

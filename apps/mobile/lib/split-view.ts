@@ -6,10 +6,12 @@ import { useWindowDimensions } from "react-native";
 const SPLIT_MIN_WIDTH = 700;
 const INBOX_MIN_WIDTH = 240;
 const CONTENT_MIN_WIDTH = 360;
+const DOCKED_CHAT_MIN_WIDTH = 300;
 const INBOX_WIDTH_KEY = "rakazo.inbox-width";
 
-type SplitState = { hidden: boolean; chosenWidth: number | null };
-let state: SplitState = { hidden: false, chosenWidth: null };
+export type DockedComputer = { botId: string; name: string };
+type SplitState = { hidden: boolean; chosenWidth: number | null; computer: DockedComputer | null };
+let state: SplitState = { hidden: false, chosenWidth: null, computer: null };
 const listeners = new Set<() => void>();
 
 function update(next: Partial<SplitState>) {
@@ -31,6 +33,18 @@ export function inboxPaneWidth(windowWidth: number, chosenWidth: number | null =
 /** Hides the chat list so the open chat fills a wide window, or brings it back. */
 export function setInboxHidden(hidden: boolean) {
   if (state.hidden !== hidden) update({ hidden });
+}
+
+/** The computer beside its chat takes most of the window; the chat keeps a readable column. */
+export function computerPaneWidth(windowWidth: number): number {
+  return Math.round(
+    Math.max(CONTENT_MIN_WIDTH, Math.min(windowWidth - DOCKED_CHAT_MIN_WIDTH, windowWidth * 0.58)),
+  );
+}
+
+/** Shows a bot's computer beside its chat on a wide window, in place of the chat list. */
+export function dockComputer(computer: DockedComputer | null) {
+  if (state.computer?.botId !== computer?.botId) update({ computer });
 }
 
 export function chooseInboxWidth(width: number) {
@@ -63,15 +77,23 @@ const currentState = () => state;
  */
 export function useSplitView() {
   const { width } = useWindowDimensions();
-  const { hidden, chosenWidth } = useSyncExternalStore(subscribe, currentState, currentState);
+  const { hidden, chosenWidth, computer } = useSyncExternalStore(
+    subscribe,
+    currentState,
+    currentState,
+  );
   const split = splitsWindow(width);
   const inboxWidth = inboxPaneWidth(width, chosenWidth);
-  const showsInbox = split && !hidden;
+  const dockedComputer = split ? computer : null;
+  const computerWidth = computerPaneWidth(width);
+  const showsInbox = split && !hidden && !dockedComputer;
   return {
     split,
     inboxHidden: hidden,
     inboxWidth,
+    dockedComputer,
+    computerWidth,
     windowWidth: width,
-    contentWidth: showsInbox ? width - inboxWidth : width,
+    contentWidth: dockedComputer ? width - computerWidth : showsInbox ? width - inboxWidth : width,
   };
 }

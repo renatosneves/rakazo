@@ -4,7 +4,7 @@ import {
   MarkdownLinkPromptProvider,
   RemoteImagesContext,
 } from "@rakazo/chat-ui/native";
-import { DarkTheme, Stack, ThemeProvider, usePathname } from "expo-router";
+import { DarkTheme, Stack, ThemeProvider, useGlobalSearchParams, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import type { ReactNode } from "react";
@@ -51,12 +51,14 @@ import { clearSavedChats } from "../lib/saved-chats";
 import { registerSessionDiskCache } from "../lib/session";
 import {
   chooseInboxWidth,
+  dockComputer,
   inboxPaneWidth,
   loadInboxWidth,
   setInboxHidden,
   useSplitView,
 } from "../lib/split-view";
 import { startUnsentSends } from "../lib/unsent-sends";
+import { ComputerSurface } from "./computer";
 import { InboxPane } from "./index";
 
 configureForegroundNotifications();
@@ -71,13 +73,22 @@ const FULL_WINDOW_ROUTES = new Set(["/sign-in", "/image", "/computer"]);
 /** On a wide window the chat list stays on the left and the stack shows the open chat beside it. */
 function SplitFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { split, inboxHidden, inboxWidth, windowWidth } = useSplitView();
+  const { split, inboxHidden, inboxWidth, windowWidth, dockedComputer, computerWidth } =
+    useSplitView();
+  const { botId: openBotId } = useGlobalSearchParams<{ botId?: string }>();
   const tokens = useMobileTokens();
   const home = pathname === "/";
   useEffect(() => {
     if (home) setInboxHidden(false);
   }, [home]);
-  const showsInbox = split && (home || !inboxHidden) && !FULL_WINDOW_ROUTES.has(pathname);
+  const showsComputer =
+    dockedComputer !== null && pathname === "/thread" && dockedComputer.botId === openBotId;
+  // Leaving the bot's chat puts the computer away.
+  useEffect(() => {
+    if (dockedComputer && !showsComputer) dockComputer(null);
+  }, [dockedComputer, showsComputer]);
+  const showsInbox =
+    split && !showsComputer && (home || !inboxHidden) && !FULL_WINDOW_ROUTES.has(pathname);
   // Dragging resizes the list natively; the width is kept when the finger lifts.
   const paneWidth = useSharedValue(inboxWidth);
   const dragStart = useRef(inboxWidth);
@@ -110,6 +121,22 @@ function SplitFrame({ children }: { children: ReactNode }) {
       ) : null}
       {/* Keeps its place among the children so the navigation stack survives folding. */}
       <View style={{ flex: 1 }}>{children}</View>
+      {showsComputer ? (
+        <View
+          style={{
+            width: computerWidth,
+            borderLeftWidth: StyleSheet.hairlineWidth,
+            borderLeftColor: tokens.border,
+          }}
+        >
+          <ComputerSurface
+            key={dockedComputer.botId}
+            botId={dockedComputer.botId}
+            name={dockedComputer.name}
+            onClose={() => dockComputer(null)}
+          />
+        </View>
+      ) : null}
       {showsInbox ? (
         <GestureDetector gesture={resize}>
           {/* Drawn last and wider than the line, over both panes, so it is easy to grab. */}

@@ -52,13 +52,32 @@ import { iosAtLeast } from "../lib/native-controls";
 import { holdFreeRotation } from "../lib/orientation";
 import { stacksAtTextScale } from "../lib/text-scale";
 import { errorText } from "../lib/user-error";
+import { useTabletopPosture } from "../lib/window-posture";
 
-export default function Computer() {
+export default function ComputerRoute() {
+  const { botId, name } = useLocalSearchParams<{ botId?: string; name?: string }>();
+  return <ComputerSurface botId={botId} name={name} />;
+}
+
+/**
+ * The computer screen. With onClose it is docked beside the bot's chat on a wide window: the
+ * desktop shows straight away in place of the preview, and closing undocks it.
+ */
+export function ComputerSurface({
+  botId,
+  name: nameParam,
+  onClose,
+}: {
+  botId?: string;
+  name?: string;
+  onClose?: () => void;
+}) {
+  const docked = Boolean(onClose);
+  const posture = useTabletopPosture();
   const { t } = useI18n();
   const tokens = useMobileTokens();
   const navigation = useNavigation();
   const stacked = stacksAtTextScale(useWindowDimensions().fontScale);
-  const { botId, name: nameParam } = useLocalSearchParams<{ botId?: string; name?: string }>();
   const name = nameParam || t("Bot");
   const [computer, setComputer] = useState<ComputerStatus | null>(null);
   const [screenUrl, setScreenUrl] = useState<string | null>(null);
@@ -69,7 +88,8 @@ export default function Computer() {
   const [switchingCount, setSwitchingCount] = useState(0);
   const booting = bootingCount > 0;
   const switching = switchingCount > 0;
-  const [computerOpen, setComputerOpen] = useState(false);
+  const [windowOpen, setComputerOpen] = useState(false);
+  const computerOpen = docked || windowOpen;
   const autoBooted = useRef<string | null>(null);
   const screenWebViewRef = useRef<WebView>(null);
   const keyboardGate = useRef({
@@ -124,8 +144,9 @@ export default function Computer() {
   const label = computerLabel(computer?.mode, name);
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title: label });
-  }, [label, navigation]);
+    // Docked beside a chat, the navigation belongs to the chat.
+    if (!docked) navigation.setOptions({ title: label });
+  }, [docked, label, navigation]);
 
   const refreshController = useMemo(
     () =>
@@ -227,7 +248,7 @@ export default function Computer() {
   }, [computerOpen, reloadScreen]);
 
   // Let the full-screen desktop rotate to landscape; phone-sized windows elsewhere stay portrait.
-  useEffect(() => (computerOpen ? holdFreeRotation() : undefined), [computerOpen]);
+  useEffect(() => (windowOpen ? holdFreeRotation() : undefined), [windowOpen]);
 
   useEffect(() => {
     if (!botId || computer?.state !== "running") return;
@@ -300,6 +321,183 @@ export default function Computer() {
 
   const placeholder =
     screenError ?? previewPlaceholder(computer?.state, booting, name, computer?.mode);
+  const closeComputer = onClose ?? (() => setComputerOpen(false));
+  const tabletop = posture.tabletop && !docked;
+
+  const fullWindow = booting ? (
+    <SafeAreaView
+      edges={["top", "left", "right"]}
+      style={{
+        flex: 1,
+        backgroundColor: tokens.background,
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 22,
+        padding: 24,
+      }}
+    >
+      <Text
+        style={{
+          color: tokens.foreground,
+          fontSize: 19,
+          fontWeight: "500",
+          textAlign: "center",
+        }}
+      >
+        {t("Booting {label}", { label })}
+      </Text>
+      <View
+        style={{
+          height: 5,
+          width: "70%",
+          maxWidth: 420,
+          overflow: "hidden",
+          borderRadius: 999,
+          backgroundColor: tokens.muted,
+        }}
+      >
+        <View
+          style={{
+            height: "100%",
+            width: "66%",
+            borderRadius: 999,
+            backgroundColor: tokens.primary,
+          }}
+        />
+      </View>
+    </SafeAreaView>
+  ) : (
+    <KeyboardAvoidingView
+      behavior={tabletop ? undefined : "height"}
+      style={{ flex: 1, backgroundColor: tokens.background }}
+    >
+      {/* Half folded, the desktop stays above the hinge and typing happens below it. */}
+      <View style={tabletop ? { height: posture.hingeTop } : { flex: 1 }}>
+        <SafeAreaView
+          edges={["top", "left", "right"]}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            borderBottomWidth: iosAtLeast(26) ? 0 : 1,
+            borderBottomColor: tokens.border,
+            paddingHorizontal: 14,
+            paddingVertical: 4,
+          }}
+        >
+          <View
+            style={{
+              flex: 1,
+              minWidth: 0,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <Text
+              numberOfLines={1}
+              style={{
+                flexShrink: 1,
+                color: tokens.foreground,
+                fontSize: 15.5,
+                fontWeight: "500",
+              }}
+            >
+              {label}
+            </Text>
+            {hasControl ? (
+              <View
+                style={{
+                  borderRadius: 999,
+                  backgroundColor: tokens.muted,
+                  paddingHorizontal: 9,
+                  paddingVertical: 3,
+                }}
+              >
+                <Text numberOfLines={1} style={{ color: tokens.success, fontSize: 12 }}>
+                  {t("You have control")}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            {hasControl ? (
+              <ComputerReleaseActions
+                takeoverRequested={computer?.takeoverRequested ?? false}
+                onRelease={releaseComputer}
+              />
+            ) : (
+              <NativeActionButton
+                label={t("Take control")}
+                prominence="secondary"
+                fill={false}
+                style={{ alignSelf: "center" }}
+                onPress={() =>
+                  void bootComputer({ takeControl: true, overlay: false }).catch(() => undefined)
+                }
+              />
+            )}
+            <GlassIconButton
+              accessibilityLabel={t("Close computer")}
+              onPress={closeComputer}
+              ios="xmark"
+              android="close"
+              size={36}
+              iconSize={16}
+            />
+          </View>
+        </SafeAreaView>
+        <View style={{ flex: 1, backgroundColor: tokens.card }}>
+          {loadedScreenUrl ? (
+            <ScreenWebView
+              key={screenReload}
+              url={loadedScreenUrl}
+              interactive={hasControl}
+              nativeKeyboard={hasControl}
+              keyboardSession={keyboardSession}
+              webViewRef={screenWebViewRef}
+              onKeyboardMessage={(data) => {
+                const gate = keyboardGate.current;
+                if (!isComputerKeyboardReadyMessage(data, String(gate.session))) return;
+                injectKeyboardCommands(gate.bridge.ready());
+              }}
+              onRendererLost={() => void reloadScreen()}
+              onError={() => {
+                refreshController.invalidateScreen();
+                setScreenError(
+                  t("Could not load the desktop. This device cannot reach the screen URL."),
+                );
+              }}
+            />
+          ) : (
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 16 }}>
+              <Text style={{ color: tokens.mutedForeground, textAlign: "center" }}>
+                {placeholder}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+      {tabletop ? <View style={{ height: posture.hingeBottom - posture.hingeTop }} /> : null}
+      {hasControl ? (
+        <ComputerKeyboardBar
+          onCommand={(command) => {
+            injectKeyboardCommands(keyboardGate.current.bridge.push(command));
+          }}
+        />
+      ) : null}
+    </KeyboardAvoidingView>
+  );
+
+  if (docked) {
+    return (
+      <View style={{ flex: 1, backgroundColor: tokens.background }}>
+        {error ? <Text style={{ color: tokens.mutedForeground, padding: 12 }}>{error}</Text> : null}
+        {fullWindow}
+      </View>
+    );
+  }
 
   return (
     <ScrollView
@@ -395,7 +593,7 @@ export default function Computer() {
       />
 
       <Modal
-        visible={booting || computerOpen}
+        visible={booting || windowOpen}
         animationType="fade"
         presentationStyle="fullScreen"
         supportedOrientations={["portrait", "landscape-left", "landscape-right"]}
@@ -403,173 +601,7 @@ export default function Computer() {
           if (!booting) setComputerOpen(false);
         }}
       >
-        <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-          {booting ? (
-            <SafeAreaView
-              edges={["top", "left", "right"]}
-              style={{
-                flex: 1,
-                backgroundColor: tokens.background,
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 22,
-                padding: 24,
-              }}
-            >
-              <Text
-                style={{
-                  color: tokens.foreground,
-                  fontSize: 19,
-                  fontWeight: "500",
-                  textAlign: "center",
-                }}
-              >
-                {t("Booting {label}", { label })}
-              </Text>
-              <View
-                style={{
-                  height: 5,
-                  width: "70%",
-                  maxWidth: 420,
-                  overflow: "hidden",
-                  borderRadius: 999,
-                  backgroundColor: tokens.muted,
-                }}
-              >
-                <View
-                  style={{
-                    height: "100%",
-                    width: "66%",
-                    borderRadius: 999,
-                    backgroundColor: tokens.primary,
-                  }}
-                />
-              </View>
-            </SafeAreaView>
-          ) : (
-            <KeyboardAvoidingView
-              behavior="height"
-              style={{ flex: 1, backgroundColor: tokens.background }}
-            >
-              <SafeAreaView
-                edges={["top", "left", "right"]}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  borderBottomWidth: iosAtLeast(26) ? 0 : 1,
-                  borderBottomColor: tokens.border,
-                  paddingHorizontal: 14,
-                  paddingVertical: 4,
-                }}
-              >
-                <View
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  <Text
-                    numberOfLines={1}
-                    style={{
-                      flexShrink: 1,
-                      color: tokens.foreground,
-                      fontSize: 15.5,
-                      fontWeight: "500",
-                    }}
-                  >
-                    {label}
-                  </Text>
-                  {hasControl ? (
-                    <View
-                      style={{
-                        borderRadius: 999,
-                        backgroundColor: tokens.muted,
-                        paddingHorizontal: 9,
-                        paddingVertical: 3,
-                      }}
-                    >
-                      <Text numberOfLines={1} style={{ color: tokens.success, fontSize: 12 }}>
-                        {t("You have control")}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  {hasControl ? (
-                    <ComputerReleaseActions
-                      takeoverRequested={computer?.takeoverRequested ?? false}
-                      onRelease={releaseComputer}
-                    />
-                  ) : (
-                    <NativeActionButton
-                      label={t("Take control")}
-                      prominence="secondary"
-                      fill={false}
-                      style={{ alignSelf: "center" }}
-                      onPress={() =>
-                        void bootComputer({ takeControl: true, overlay: false }).catch(
-                          () => undefined,
-                        )
-                      }
-                    />
-                  )}
-                  <GlassIconButton
-                    accessibilityLabel={t("Close computer")}
-                    onPress={() => setComputerOpen(false)}
-                    ios="xmark"
-                    android="close"
-                    size={36}
-                    iconSize={16}
-                  />
-                </View>
-              </SafeAreaView>
-              <View style={{ flex: 1, backgroundColor: tokens.card }}>
-                {loadedScreenUrl ? (
-                  <ScreenWebView
-                    key={screenReload}
-                    url={loadedScreenUrl}
-                    interactive={hasControl}
-                    nativeKeyboard={hasControl}
-                    keyboardSession={keyboardSession}
-                    webViewRef={screenWebViewRef}
-                    onKeyboardMessage={(data) => {
-                      const gate = keyboardGate.current;
-                      if (!isComputerKeyboardReadyMessage(data, String(gate.session))) return;
-                      injectKeyboardCommands(gate.bridge.ready());
-                    }}
-                    onRendererLost={() => void reloadScreen()}
-                    onError={() => {
-                      refreshController.invalidateScreen();
-                      setScreenError(
-                        t("Could not load the desktop. This device cannot reach the screen URL."),
-                      );
-                    }}
-                  />
-                ) : (
-                  <View
-                    style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 16 }}
-                  >
-                    <Text style={{ color: tokens.mutedForeground, textAlign: "center" }}>
-                      {placeholder}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              {hasControl ? (
-                <ComputerKeyboardBar
-                  onCommand={(command) => {
-                    injectKeyboardCommands(keyboardGate.current.bridge.push(command));
-                  }}
-                />
-              ) : null}
-            </KeyboardAvoidingView>
-          )}
-        </SafeAreaProvider>
+        <SafeAreaProvider initialMetrics={initialWindowMetrics}>{fullWindow}</SafeAreaProvider>
       </Modal>
     </ScrollView>
   );

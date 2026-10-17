@@ -157,6 +157,7 @@ import { findSwitchTarget, ringOnArrival, takeRingOnArrival } from "../lib/bot-s
 import { setCallProviderTranscribe, startCall, useCallSession } from "../lib/call-session";
 import { loadDeviceVoiceEnabled } from "../lib/device-voice";
 import { available as dictationAvailable } from "../lib/dictation";
+import { useFileDrop } from "../lib/file-drop";
 import { cancelFocusPrompt, focusPromptThreadActive } from "../lib/focus-prompt";
 import { t, useI18n } from "../lib/i18n";
 import { isInlineImageMimeType } from "../lib/inline-image";
@@ -185,7 +186,12 @@ import {
   threadSpaceSwitchResult,
 } from "../lib/notification-open";
 import type { PickedAttachment } from "../lib/pick-attachments";
-import { pickDocuments, pickFromLibrary, takePhoto } from "../lib/pick-attachments";
+import {
+  pickDocuments,
+  pickFromLibrary,
+  readDroppedFiles,
+  takePhoto,
+} from "../lib/pick-attachments";
 import { threadRefreshDelayMs } from "../lib/refresh";
 import {
   getCachedResponseStreamingEnabled,
@@ -208,7 +214,7 @@ import {
   loadVerifiedIntegrationsScope,
   subscribeSessionGeneration,
 } from "../lib/session";
-import { setInboxHidden, useSplitView } from "../lib/split-view";
+import { dockComputer, setInboxHidden, useSplitView } from "../lib/split-view";
 import type { SendAttempt } from "../lib/thread-feedback";
 import { confirmEchoes, subscribeDelivered, useThreadFeedback } from "../lib/thread-feedback";
 import { ThreadJumpAnchor } from "../lib/thread-jump";
@@ -410,7 +416,7 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
   const navigation = useNavigation();
   const router = useRouter();
   // Beside the chat list on a wide window, the chat has only the width the list leaves.
-  const { split, inboxHidden, contentWidth: windowWidth } = useSplitView();
+  const { split, inboxHidden, dockedComputer, contentWidth: windowWidth } = useSplitView();
   const nativeHeaderHeight = useHeaderHeight();
   const headerHeight = iosAtLeast(26) ? nativeHeaderHeight : 0;
   const insets = useSafeAreaInsets();
@@ -930,7 +936,7 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
             </Pressable>
           </View>
         ),
-      ...(split
+      ...(split && !dockedComputer
         ? {
             headerBackVisible: false,
             headerLeft: () => (
@@ -958,6 +964,7 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
   }, [
     split,
     inboxHidden,
+    dockedComputer,
     readOnly,
     restoring,
     botId,
@@ -1011,10 +1018,7 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
   }
 
   function openBotComputer() {
-    router.push({
-      pathname: "/computer",
-      params: { botId: botId ?? "", name: displayName ?? t("Bot") },
-    });
+    if (botId) openComputer(botId, displayName ?? t("Bot"));
   }
 
   const botActions = [
@@ -1771,10 +1775,16 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
     [router],
   );
 
+  // On a wide window the computer opens beside the bot's own chat; tapping again puts it away.
   const openComputer = useCallback(
-    (id: string, botName: string) =>
-      router.push({ pathname: "/computer", params: { botId: id, name: botName } }),
-    [router],
+    (id: string, botName: string) => {
+      if (split && !groupId && id === botId) {
+        dockComputer(dockedComputer?.botId === id ? null : { botId: id, name: botName });
+        return;
+      }
+      router.push({ pathname: "/computer", params: { botId: id, name: botName } });
+    },
+    [router, split, groupId, botId, dockedComputer],
   );
 
   const speak = useCallback(
@@ -1934,6 +1944,11 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
         : null,
     );
   }
+
+  // Files dragged in from another app beside this one attach like picked files.
+  useFileDrop((files) => {
+    if (!readOnly) void addAttachments((count) => readDroppedFiles(files, count));
+  });
 
   const answerableAskMessageId = latestAnswerableAskMessageId(snap);
   const runError = snap?.run?.status === "failed" ? (snap.run.error ?? null) : null;

@@ -83,3 +83,22 @@ export async function pickDocuments(existingCount = 0): Promise<{
   );
   return filterPickedAttachments(existingCount, candidates);
 }
+
+/** Files dragged in from another window, already copied into the app's cache. */
+export async function readDroppedFiles(
+  files: Array<{ uri: string; name: string; mimeType: string }>,
+  existingCount = 0,
+): Promise<{
+  attachments: PickedAttachment[];
+  skipped: PickSkip[];
+}> {
+  const candidates = await Promise.all(
+    files.map(async (file) => {
+      const mimeType = inferAttachmentMimeType(file.name, file.mimeType || undefined);
+      const { contentBase64, size } = await readUriAsBase64(file.uri);
+      const previewUri = mimeType?.startsWith("image/") ? file.uri : undefined;
+      return { name: file.name, mimeType, size, contentBase64, previewUri };
+    }),
+  );
+  return filterPickedAttachments(existingCount, candidates);
+}
