@@ -12,6 +12,7 @@ import {
   Menu,
   net,
   type Session,
+  screen,
   session,
   shell,
 } from "electron";
@@ -58,7 +59,13 @@ import {
   servesBundledRenderer,
   sessionPartitionForServerUrl,
 } from "./setup-config.js";
-import { clearSetup, readSetup, writeSetup } from "./setup-store.js";
+import {
+  clearSetup,
+  readPrivateFile,
+  readSetup,
+  writePrivateFile,
+  writeSetup,
+} from "./setup-store.js";
 import { oauthPopupSessionPreferences, shouldOpenInAppPopup } from "./window-open.js";
 import {
   browserWindowOptions,
@@ -66,6 +73,13 @@ import {
   setupWindowOptions,
   warmWindowTtlMs,
 } from "./window-options.js";
+import type { WindowState } from "./window-state.js";
+import {
+  parseWindowState,
+  restorableWindowState,
+  serializeWindowState,
+  WINDOW_STATE_FILE_NAME,
+} from "./window-state.js";
 
 const PERFORMANCE_USER_DATA = process.env.RAKAZO_PERFORMANCE_USER_DATA;
 /** Test hook: where the app-managed stack answers. Mode `new` still requires loopback. */
@@ -95,6 +109,9 @@ let warmWindowTimer: NodeJS.Timeout | undefined;
 // destroying the last window fires "window-all-closed" -> app.quit(); a probe
 // that runs before the first real window exists must not count as "all closed".
 let liveProbeWindows = 0;
+let savedWindowState: WindowState | null = null;
+let windowStateWrites: Promise<void> = Promise.resolve();
+const WINDOW_STATE_SAVE_DELAY_MS = 500;
 const WARM_WINDOW_TTL_MS = warmWindowTtlMs(process.env.RAKAZO_WARM_WINDOW_TTL_MS);
 
 const updaterEnvironment = {
@@ -250,11 +267,43 @@ async function defaultSessionHasOriginData(origin: string): Promise<boolean> {
   }
 }
 
+/** Saves where the app window sits so the next launch reopens it there. */
+function rememberWindowState(win: BrowserWindow) {
+  let timer: NodeJS.Timeout | undefined;
+  const save = () => {
+    clearTimeout(timer);
+    if (win.isDestroyed() || win.isMinimized() || win.isFullScreen()) return;
+    const state = { ...win.getNormalBounds(), maximized: win.isMaximized() };
+    savedWindowState = state;
+    const file = path.join(app.getPath("userData"), WINDOW_STATE_FILE_NAME);
+    windowStateWrites = windowStateWrites
+      .then(() => writePrivateFile(file, serializeWindowState(state)))
+      .catch(() => undefined);
+  };
+  const scheduleSave = () => {
+    clearTimeout(timer);
+    timer = setTimeout(save, WINDOW_STATE_SAVE_DELAY_MS);
+  };
+  win.on("resize", scheduleSave);
+  win.on("move", scheduleSave);
+  win.on("maximize", scheduleSave);
+  win.on("unmaximize", scheduleSave);
+  win.on("close", save);
+  win.once("closed", () => clearTimeout(timer));
+}
+
 function createWindow(url: string, partition: string | null) {
   markOnce("rk:main:window-create-start");
   const icon = developmentIcon();
+  const restored = restorableWindowState(
+    savedWindowState,
+    screen.getAllDisplays().map((display) => display.workArea),
+  );
   const win = new BrowserWindow({
     ...browserWindowOptions(process.platform),
+    ...(restored
+      ? { x: restored.x, y: restored.y, width: restored.width, height: restored.height }
+      : {}),
     ...(icon ? { icon } : {}),
     webPreferences: {
       preload: path.join(import.meta.dirname, "preload.cjs"),
@@ -264,6 +313,8 @@ function createWindow(url: string, partition: string | null) {
       ...(partition === null ? {} : { partition }),
     },
   });
+  if (restored?.maximized) win.maximize();
+  rememberWindowState(win);
   mainWindow = win;
   appWindowTargets.set(win, url);
   const targetOrigin = safeOrigin(url);
@@ -998,6 +1049,11 @@ app.whenReady().then(async () => {
     },
   });
   currentSetup = await readSetup(userDataDir);
+  const windowStateFile = await readPrivateFile(
+    path.join(userDataDir, WINDOW_STATE_FILE_NAME),
+    4096,
+  );
+  savedWindowState = windowStateFile === null ? null : parseWindowState(windowStateFile);
   const target = resolveStartupTarget({
     envUrl: process.env.RAKAZO_WEB_URL,
     saved: currentSetup,
