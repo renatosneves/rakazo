@@ -174,6 +174,17 @@ describe("mobile i18n", () => {
     expect(applyMobileUiDirection).toHaveBeenCalledWith("en");
   });
 
+  it("recognises speech in the device language when the UI has no catalog for it", async () => {
+    const { getItemAsync } = await import("expo-secure-store");
+    vi.mocked(getItemAsync).mockResolvedValue(null);
+    const { getLocales } = await import("expo-localization");
+    vi.mocked(getLocales).mockReturnValueOnce([{ languageTag: "pt-BR" }] as never);
+    const { bootstrapI18n, getSpeechLanguage } = await import("./i18n");
+
+    await expect(bootstrapI18n()).resolves.toBe("en");
+    expect(getSpeechLanguage()).toBe("pt-BR");
+  });
+
   it("normalizes a regional Russian stored locale before activation", async () => {
     const { getItemAsync } = await import("expo-secure-store");
     vi.mocked(getItemAsync).mockResolvedValue("ru-RU");

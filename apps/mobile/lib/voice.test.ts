@@ -128,6 +128,31 @@ describe("mobile speech", () => {
     }
   });
 
+  it("renders the next sentence while the current one plays", async () => {
+    const playing: HeldAudio[] = [];
+    class HeldAudio {
+      onended: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      async play() {
+        playing.push(this);
+      }
+
+      pause() {}
+    }
+    vi.stubGlobal("Audio", HeldAudio);
+
+    const spoken = speakText("Read this", { botId: "bot-1" });
+    await waitFor(() => playing.length === 1);
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    playing[0]?.onended?.();
+    await waitFor(() => playing.length === 2);
+    playing[1]?.onended?.();
+    await expect(spoken).resolves.toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("listens for an HTML audio clip ending before playback starts", async () => {
     class ImmediateAudio {
       onended: (() => void) | null = null;

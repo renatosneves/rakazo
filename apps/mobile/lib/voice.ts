@@ -218,9 +218,20 @@ async function speakPrepared(text: string, opts: SpeechOptions, epoch: number): 
     );
     let finished = false;
     try {
-      for (const utterance of prepared.utterances) {
+      const { utterances } = prepared;
+      // Render the next sentence while this one plays, so replies have no gap between sentences.
+      const render = (i: number) => {
+        const pending = renderUtterance(utterances[i] ?? "", opts, requestContext);
+        // A stop can abandon the prefetch; its failure is surfaced only if it is awaited.
+        pending.catch(() => undefined);
+        return pending;
+      };
+      let next = utterances.length > 0 ? render(0) : null;
+      for (let i = 0; i < utterances.length && next; i += 1) {
         if (session.isStopped || !isCurrentSpeech(epoch)) break;
-        const audio = await renderUtterance(utterance, opts, requestContext);
+        const current = next;
+        next = i + 1 < utterances.length ? render(i + 1) : null;
+        const audio = await current;
         if (session.isStopped || !isCurrentSpeech(epoch)) break;
         await playMpeg(audio, session);
       }
