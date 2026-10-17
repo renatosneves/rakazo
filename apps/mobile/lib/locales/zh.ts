@@ -770,4 +770,6 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Send deletion code": "发送删除验证码",
   "Sign in to your existing account to link SSO": "请登录现有账户以关联 SSO",
   "SSO is temporarily unavailable. Try again.": "SSO 暂时不可用，请重试。",
+  "Hide chats": "隐藏聊天",
+  "Show chats": "显示聊天",
 };
