@@ -56,6 +56,12 @@ name: Rakazo unfolded split view
 - waitForAnimationToEnd
 - takeScreenshot: "fold-05-list-back"
 
+# The notification prompt can appear late; clear it so the drag reaches the divider.
+- tapOn:
+    text: "Don’t allow"
+    optional: true
+- waitForAnimationToEnd
+- takeScreenshot: "fold-05b-before-drag"
 # Drag the divider to the right; the list widens and keeps its tags once wide enough.
 - swipe:
     start: "40%, 50%"
