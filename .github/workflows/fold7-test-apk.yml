@@ -15,7 +15,103 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  verify:
+    name: Check the split view on a Fold 7-sized emulator
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: rakazo
+          POSTGRES_PASSWORD: rakazo
+          POSTGRES_DB: rakazo
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U rakazo"
+          --health-interval 3s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      CI: "1"
+      DATABASE_URL: postgres://rakazo:rakazo@127.0.0.1:5433/rakazo
+      EXPO_PUBLIC_API_URL: http://10.0.2.2:3110
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947 # v4.4.3
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install pinned Maestro CLI
+        run: |
+          set -euo pipefail
+          maestro_tmp=$(mktemp -d)
+          base_url=https://github.com/mobile-dev-inc/maestro/releases/download/cli-2.6.1
+          curl --fail --silent --show-error --location "$base_url/maestro.zip" --output "$maestro_tmp/maestro.zip"
+          echo "3440825f514f537c6a96bcf5de995780c2a4a7f83a43208fdc95d4f1fecfad3b  maestro.zip" |
+            (cd "$maestro_tmp" && sha256sum --check --strict -)
+          unzip -q "$maestro_tmp/maestro.zip" -d "$maestro_tmp"
+          mkdir -p "$HOME/.maestro"
+          cp -R "$maestro_tmp/maestro/." "$HOME/.maestro/"
+          echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
+      - name: Generate Android project
+        run: |
+          pnpm --filter @rakazo/mobile exec expo prebuild --platform android --no-install
+          sed -i 's/MaxMetaspaceSize=512m/MaxMetaspaceSize=1g/' apps/mobile/android/gradle.properties
+      - name: Build emulator APK
+        working-directory: apps/mobile/android
+        run: ./gradlew app:packageRelease -PreactNativeArchitectures=x86_64 --no-daemon
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm",GROUP="kvm",MODE="0666",OPTIONS+="static_node=kvm"' |
+            sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run the split-view flow
+        uses: reactivecircus/android-emulator-runner@c9c93e6ba9c4194322e114c40970d5983d9a07cc # v2.38.0
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          cores: 2
+          ram-size: 4096M
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash .github/scripts/fold7-emulator-check.sh
+      - name: Publish screenshots
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p shots
+          find . -path ./node_modules -prune -o -name '*.png' -path '*fold-*' -print -exec cp {} shots/ \;
+          find test-report -name 'android.log' -exec cp {} shots/ \; || true
+          ls -la shots
+          gh release delete fold7-checks --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
+          gh release create fold7-checks shots/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Fold7 split-view checks" --latest=false --prerelease --notes "Emulator screenshots."
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: fold7-checks
+          path: test-report
+          if-no-files-found: ignore
+
   build:
+    needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -64,8 +160,8 @@ jobs:
         run: |
           set -euo pipefail
           cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk rakazo-fold7.apk
-          gh release delete fold7 --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
-          gh release create fold7 rakazo-fold7.apk --repo "$GITHUB_REPOSITORY" \
+          gh release delete fold7-next --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
+          gh release create fold7-next rakazo-fold7.apk --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" --title "Rakazo Fold7 test build" --latest=false \
             --notes "Test build of the foldable layout. Installs next to the regular Rakazo app."
 

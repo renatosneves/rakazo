@@ -79,7 +79,8 @@ async function main() {
 
   try {
     await waitForHealth(`${HOST_API_URL}/health`, 15_000);
-    for (const flow of ["screenshots", "notification-demo"]) {
+    const flows = process.env.MOBILE_FLOWS?.split(",") ?? ["screenshots", "notification-demo"];
+    for (const flow of flows) {
       await runProcess(
         "maestro",
         [
