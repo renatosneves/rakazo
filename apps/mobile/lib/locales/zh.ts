@@ -772,4 +772,9 @@ export const ZH_MESSAGES: Record<string, string> = {
   "SSO is temporarily unavailable. Try again.": "SSO 暂时不可用，请重试。",
   "Hide chats": "隐藏聊天",
   "Show chats": "显示聊天",
+  "Choose photo": "选择照片",
+  "Remove photo": "移除照片",
+  Shape: "形状",
+  "Shape {number}": "形状 {number}",
+  "Could not use that photo": "无法使用这张照片",
 };
