@@ -1,8 +1,10 @@
 import type { MenuAction } from "@expo/ui/community/menu";
 import { MenuView } from "@expo/ui/community/menu";
 import type { ReactNode } from "react";
+import { useMemo } from "react";
 import type { ColorSchemeName, GestureResponderEvent } from "react-native";
 import { Platform, Pressable, View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import type { MessageMenuEntry, MessageMenuSymbol } from "../lib/message-context-menu";
 
 const symbols = {
@@ -21,6 +23,7 @@ export function MessageContextMenu({
   maxWidth,
   onAction,
   onLongPress,
+  onDoubleTap,
 }: {
   actions: readonly MessageMenuEntry[];
   children: ReactNode;
@@ -28,16 +31,32 @@ export function MessageContextMenu({
   maxWidth: number;
   onAction: (id: string) => void;
   onLongPress?: (event: GestureResponderEvent) => void;
+  /** Double tapping the message, used to react with a thumbs up. */
+  onDoubleTap?: () => void;
 }) {
+  const doubleTap = useMemo(
+    () =>
+      Gesture.Tap()
+        .numberOfTaps(2)
+        .maxDelay(250)
+        .enabled(Boolean(onDoubleTap))
+        .runOnJS(true)
+        .onEnd((_event, success) => {
+          if (success) onDoubleTap?.();
+        }),
+    [onDoubleTap],
+  );
   if (Platform.OS !== "ios") {
     return (
-      <Pressable
-        accessible={false}
-        onLongPress={onLongPress}
-        style={{ maxWidth: "100%", flexShrink: 1 }}
-      >
-        {children}
-      </Pressable>
+      <GestureDetector gesture={doubleTap}>
+        <Pressable
+          accessible={false}
+          onLongPress={onLongPress}
+          style={{ maxWidth: "100%", flexShrink: 1 }}
+        >
+          {children}
+        </Pressable>
+      </GestureDetector>
     );
   }
   return (
@@ -49,7 +68,9 @@ export function MessageContextMenu({
       style={{ maxWidth: "100%", flexShrink: 1 }}
     >
       {/* The SwiftUI bridge measures its trigger without a horizontal constraint. */}
-      <View style={{ maxWidth, flexShrink: 1 }}>{children}</View>
+      <GestureDetector gesture={doubleTap}>
+        <View style={{ maxWidth, flexShrink: 1 }}>{children}</View>
+      </GestureDetector>
     </MenuView>
   );
 }
