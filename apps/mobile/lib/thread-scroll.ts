@@ -4,11 +4,20 @@ export type { ThreadScrollState } from "@rakazo/core";
 
 export type ThreadScrollAction = "jump" | "smooth" | null;
 
+/** The newest row: the latest message, or a send still in the outbox drawn below it. */
+export function latestThreadRowKey(
+  latestMessageId: string | null,
+  unsentKeys: readonly string[],
+): string | null {
+  const unsent = unsentKeys.at(-1);
+  return unsent === undefined ? latestMessageId : `${latestMessageId}:${unsent}`;
+}
+
 export class ThreadScrollBehavior {
   private threadKey: string | null = null;
   private laidOut = false;
   private contentReady = false;
-  private latestMessageId: string | null = null;
+  private latestRowKey: string | null = null;
   private currentState: ThreadScrollState = { detached: false, unread: false };
 
   openThread(threadKey: string): void {
@@ -16,7 +25,7 @@ export class ThreadScrollBehavior {
     this.threadKey = threadKey;
     this.laidOut = false;
     this.contentReady = false;
-    this.latestMessageId = null;
+    this.latestRowKey = null;
     this.currentState = { detached: false, unread: false };
   }
 
@@ -25,12 +34,12 @@ export class ThreadScrollBehavior {
     return this.contentReady && !this.currentState.detached ? "jump" : null;
   }
 
-  onContentChanged(blocked: boolean, latestMessageId: string | null): ThreadScrollAction {
+  onContentChanged(blocked: boolean, latestRowKey: string | null): ThreadScrollAction {
     if (blocked) return null;
     this.contentReady = true;
-    if (latestMessageId === null || latestMessageId === this.latestMessageId) return null;
-    const initial = this.latestMessageId === null;
-    this.latestMessageId = latestMessageId;
+    if (latestRowKey === null || latestRowKey === this.latestRowKey) return null;
+    const initial = this.latestRowKey === null;
+    this.latestRowKey = latestRowKey;
     if (initial) return this.laidOut ? "jump" : null;
     if (this.currentState.detached) {
       this.currentState = { detached: true, unread: true };
