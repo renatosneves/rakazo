@@ -220,7 +220,7 @@ import { confirmEchoes, subscribeDelivered, useThreadFeedback } from "../lib/thr
 import { ThreadJumpAnchor } from "../lib/thread-jump";
 import { ThreadReadOnlyContext } from "../lib/thread-read-only";
 import type { ThreadScrollAction, ThreadScrollState } from "../lib/thread-scroll";
-import { ThreadScrollBehavior } from "../lib/thread-scroll";
+import { latestThreadRowKey, ThreadScrollBehavior } from "../lib/thread-scroll";
 import { reconcileVisibleThreadSnapshot } from "../lib/thread-snapshot";
 import { prepareUnsentSends } from "../lib/unsent-sends";
 import { errorText } from "../lib/user-error";
@@ -2459,7 +2459,15 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
                         pinnedAroundRef.current.groupId === groupId))) ||
                   expandedHistoryThread.current === snap?.threadId,
               );
-              performScroll(scrollBehavior.current.onContentChanged(blocked, latestMessageId));
+              performScroll(
+                scrollBehavior.current.onContentChanged(
+                  blocked,
+                  latestThreadRowKey(
+                    latestMessageId,
+                    feedback.unsentSends.map((attempt) => attempt.clientNonce),
+                  ),
+                ),
+              );
               publishThreadScrollState(scrollBehavior.current.state());
             }}
             ListFooterComponent={loadEarlierControl}
