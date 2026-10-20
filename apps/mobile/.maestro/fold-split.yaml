@@ -82,3 +82,15 @@ name: Rakazo unfolded split view
     duration: 1500
 - waitForAnimationToEnd
 - takeScreenshot: "fold-07-list-narrowed"
+
+# Sharing a link from another app opens the chat list; the chat picked gets it in its composer.
+- evalScript: ${output.share = http.get(RAKAZO_SHARE_TEXT_URL)}
+- waitForAnimationToEnd
+- takeScreenshot: "fold-09-share-inbox"
+- tapOn:
+    text: "Researcher"
+    index: 0
+- extendedWaitUntil:
+    visible: "https://example.com/shared-link"
+    timeout: 15000
+- takeScreenshot: "fold-10-share-composer"

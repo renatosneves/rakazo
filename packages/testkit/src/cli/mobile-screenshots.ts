@@ -25,6 +25,7 @@ const DEVICE_CONTROL_PORT = 3111;
 const HOST_API_URL = `http://127.0.0.1:${API_PORT}`;
 const DEVICE_CONTROL_URL = `http://127.0.0.1:${DEVICE_CONTROL_PORT}`;
 const EXPAND_NOTIFICATIONS_URL = `${DEVICE_CONTROL_URL}/expand-notifications`;
+const SHARE_TEXT_URL = `${DEVICE_CONTROL_URL}/share-text`;
 const WEB_ORIGIN = "http://127.0.0.1:5180";
 
 type App = { request: (input: string, init?: RequestInit) => Response | Promise<Response> };
@@ -109,6 +110,8 @@ async function main() {
           `RAKAZO_NOTIFICATION_VIDEO=${path.join(REPORT_DIR, "notification-demo")}`,
           "-e",
           `RAKAZO_EXPAND_NOTIFICATIONS_URL=${EXPAND_NOTIFICATIONS_URL}`,
+          "-e",
+          `RAKAZO_SHARE_TEXT_URL=${SHARE_TEXT_URL}`,
           path.join(FLOW_DIR, `${flow}.yaml`),
         ],
         process.env,
@@ -132,22 +135,27 @@ async function main() {
 }
 
 /** Maestro host-side helper: expand the Android shade without flaky status-bar swipes. */
+// Shares a link into the app the way another app's share sheet would.
+const DEVICE_COMMANDS: Record<string, string[]> = {
+  "/expand-notifications": ["shell", "cmd", "statusbar", "expand-notifications"],
+  "/share-text": [
+    "shell",
+    "am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT https://example.com/shared-link -n com.rakazo.app/.MainActivity",
+  ],
+};
+
 function startDeviceControlServer(): Server {
   const server = createServer((req, res) => {
-    if (req.method !== "GET" || req.url !== "/expand-notifications") {
+    const command = req.method === "GET" ? DEVICE_COMMANDS[req.url ?? ""] : undefined;
+    if (!command) {
       res.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
       res.end("not found");
       return;
     }
-    execFile(
-      "adb",
-      ["shell", "cmd", "statusbar", "expand-notifications"],
-      { timeout: 5_000 },
-      (error) => {
-        res.writeHead(error ? 500 : 200, { "content-type": "text/plain; charset=utf-8" });
-        res.end(error ? "Could not expand notifications" : "ok");
-      },
-    );
+    execFile("adb", command, { timeout: 5_000 }, (error) => {
+      res.writeHead(error ? 500 : 200, { "content-type": "text/plain; charset=utf-8" });
+      res.end(error ? "Device command failed" : "ok");
+    });
   });
   server.listen(DEVICE_CONTROL_PORT, "127.0.0.1");
   return server;
