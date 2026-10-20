@@ -101,6 +101,7 @@ describe("settings links", () => {
       "rakazo:///artifacts",
     );
     expect(close).toHaveBeenCalledTimes(2);
+    expect(redirectSystemPath({ path: "rakazo://expo-sharing", initial: true })).toBe("/");
     unregister();
   });
 });
