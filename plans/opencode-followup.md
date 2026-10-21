@@ -2,6 +2,24 @@
 
 The orchestrator re-checked all ten PRs after the first round. All ten pass: author, base, unstacking, lint, type check and the mobile tests. The items below are what's left. The ground rules, author identity and push rules from `plans/opencode-fix-plan.md` still apply. Keep each PR as a single commit: amend it, or fix it up and squash.
 
+## Step A: install your standing rules (once, before anything else)
+
+Your standing rules live in `plans/opencode-worker-rules.md` on the fork branch `claude/project-thread-da55l3`. Load them in every session for this repo **without committing anything to a PR branch**:
+
+1. In your local clone's root, create `opencode.json` (or add to the existing one) with:
+   ```json
+   {
+     "$schema": "https://opencode.ai/config.json",
+     "instructions": [
+       "https://raw.githubusercontent.com/renatosneves/rakazo/claude/project-thread-da55l3/plans/opencode-worker-rules.md"
+     ]
+   }
+   ```
+2. Keep the file local only: add `opencode.json` to `.git/info/exclude` (not `.gitignore`, which is tracked).
+3. Confirm that `git status` doesn't list `opencode.json`. Then restart OpenCode in the repo and confirm that the rules appear in your context.
+
+The repository's own `AGENTS.md` still loads, and the rules file is added to it. Never edit the repo's `AGENTS.md` in a PR branch: it's the upstream maintainer's file, and changes there would leak into upstream PRs.
+
 ## 0. Encoding (do this first; it's the cause of the #10 blocker)
 
 Your editor or shell is writing files with a UTF-8 BOM, and in one case re-encoded UTF-8 as Windows-1252 (mojibake).
