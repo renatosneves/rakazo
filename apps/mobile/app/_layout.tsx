@@ -23,6 +23,7 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-g
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import Animated, { useAnimatedStyle, useSharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AndroidActionSheetHost } from "../components/android-action-sheet";
 import { AvatarStyleProvider } from "../components/avatar-style";
 import { CallCard } from "../components/CallCard";
 import { ComputerUpdateProgress } from "../components/computer-update-progress";
@@ -420,6 +421,7 @@ export default function Layout() {
                 <ComputerUpdateProgress />
                 <MessageMenuHost />
                 <CallCard />
+                <AndroidActionSheetHost />
               </ThemeProvider>
             </ChatContentProviders>
           </AvatarStyleProvider>

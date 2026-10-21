@@ -3,6 +3,7 @@ import type { ColorValue, StyleProp, ViewStyle } from "react-native";
 import { Pressable } from "react-native";
 import { useMobileTokens } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
+import { androidRipple } from "../lib/ripple";
 import { GlassSurface } from "./glass-surface";
 import { NativeSymbol } from "./native-symbol";
 
@@ -57,11 +58,14 @@ export function GlassIconButton({
         accessibilityLabel={accessibilityLabel}
         accessibilityState={selected === undefined ? undefined : { selected }}
         hitSlop={4}
+        android_ripple={androidRipple()}
         onPress={onPress}
         style={({ pressed }) => ({
           flex: 1,
           alignItems: "center",
           justifyContent: "center",
+          borderRadius: size / 2,
+          overflow: "hidden",
           opacity: pressed ? 0.6 : 1,
         })}
       >

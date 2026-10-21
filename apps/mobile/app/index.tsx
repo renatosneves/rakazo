@@ -114,6 +114,7 @@ import { native, useThemedStyles } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
 import { previewSnippet } from "../lib/preview";
 import { registerPushToken } from "../lib/push";
+import { androidRipple } from "../lib/ripple";
 import { loadSavedInbox, saveInbox } from "../lib/saved-chats";
 import { setSearchInbox } from "../lib/search-inbox";
 import { promptSectionName } from "../lib/section-name-prompt";
@@ -1524,6 +1525,7 @@ function ConversationRow({
         if (name === "toggleChildren") onToggleChildren?.();
         else if (action) onAction?.(action);
       }}
+      android_ripple={androidRipple()}
       onPress={onPress}
       onLongPress={onLongPress}
       style={({ pressed }) => [

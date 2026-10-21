@@ -4,6 +4,7 @@ import type { PressableProps } from "react-native";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { mobileTokens } from "../lib/appearance";
 import { native, useThemedStyles } from "../lib/native";
+import { androidRipple } from "../lib/ripple";
 import { stacksAtTextScale } from "../lib/text-scale";
 import { NativeSwitch } from "./native-switch";
 import { Chevron } from "./row-accessories";
@@ -123,6 +124,7 @@ export function SettingsRow({
   return (
     <Pressable
       {...props}
+      android_ripple={androidRipple()}
       style={({ pressed }) => [
         styles.row,
         stacked && styles.compactRow,

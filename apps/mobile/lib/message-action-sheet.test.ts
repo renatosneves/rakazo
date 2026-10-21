@@ -1,12 +1,13 @@
-import { ActionSheetIOS, Alert, Platform } from "react-native";
+import { ActionSheetIOS, Platform } from "react-native";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { presentAndroidActionSheet } from "./android-action-sheet";
 import { presentMessageActionSheet } from "./message-action-sheet";
 
 vi.mock("react-native", () => ({
   Platform: { OS: "ios" },
   ActionSheetIOS: { showActionSheetWithOptions: vi.fn() },
-  Alert: { alert: vi.fn() },
 }));
+vi.mock("./android-action-sheet", () => ({ presentAndroidActionSheet: vi.fn() }));
 
 function sheet() {
   const actions = ["Reply", "React", "Speak", "Copy"].map((text) => ({ text, onPress: vi.fn() }));
@@ -41,21 +42,20 @@ describe("native message action sheet", () => {
     }
   });
 
-  it("keeps all Android actions reachable within the three-button limit", () => {
+  it("keeps every Android action in one sheet instead of paging an Alert", () => {
     Platform.OS = "android";
     const actions = sheet();
-    const [title, , firstPage, options] = vi.mocked(Alert.alert).mock.calls[0]!;
-    expect(title).toBe("12:34");
-    expect(options).toEqual({ cancelable: true });
-    expect(firstPage?.map((button) => button.text)).toEqual(["Reply", "React", "More"]);
-    firstPage?.[0]?.onPress?.();
-    firstPage?.[1]?.onPress?.();
-    firstPage?.[2]?.onPress?.();
-    const [, , secondPage, secondOptions] = vi.mocked(Alert.alert).mock.calls[1]!;
-    expect(secondPage?.map((button) => button.text)).toEqual(["Speak", "Copy", "Cancel"]);
-    expect(secondOptions).toEqual({ cancelable: true });
-    secondPage?.[0]?.onPress?.();
-    secondPage?.[1]?.onPress?.();
-    expect(actions.every((action) => action.onPress.mock.calls.length === 1)).toBe(true);
+    const request = vi.mocked(presentAndroidActionSheet).mock.calls[0]?.[0];
+    expect(request?.title).toBe("12:34");
+    expect(request?.cancel).toBe("Cancel");
+    expect(request?.actions.map((action) => action.text)).toEqual([
+      "Reply",
+      "React",
+      "Speak",
+      "Copy",
+    ]);
+    request?.actions[0]?.onPress();
+    expect(actions[0]?.onPress).toHaveBeenCalledOnce();
+    expect(presentAndroidActionSheet).toHaveBeenCalledOnce();
   });
 });

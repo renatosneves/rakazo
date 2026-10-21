@@ -3,6 +3,7 @@ import type { mobileTokens } from "../lib/appearance";
 import { native, useMobileTokens } from "../lib/native";
 import type { ActionProminence, NativeActionButtonProps } from "../lib/native-controls";
 import { actionAccessibilityState, actionFills, actionProminence } from "../lib/native-controls";
+import { androidRipple } from "../lib/ripple";
 import { NativeSymbol } from "./native-symbol";
 
 /** Android (and non-iOS) form buttons. iOS uses the SwiftUI button in the platform file. */
@@ -47,6 +48,7 @@ export function NativeActionButton({
       accessibilityState={actionAccessibilityState(inactive, selected)}
       disabled={inactive}
       hitSlop={compact ? 8 : undefined}
+      android_ripple={androidRipple()}
       onPress={onPress}
       style={({ pressed }) => [
         {
