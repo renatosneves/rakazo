@@ -46,7 +46,7 @@ These rules are added on top of the repository's own `AGENTS.md` and `CONTRIBUTI
 - Fix only what the task names.
 - Removing a visible feature, adding a visible feature, or changing a default needs the orchestrator's explicit OK first. Examples: removing a live preview, stopping a first-run permission prompt, adding a new settings row.
 - No vendor SDKs or vendor-specific env vars (e.g. Sentry). AGENTS.md requires the core product to run with no hosted vendor.
-- Don't bump `apps/mobile/app.json` `version`/`versionCode`. That belongs to the release process.
+- Version bumps follow upstream `docs/mobile-release.md`. Bump `expo.version` (and `android.versionCode`) when a PR changes native code, config plugins, permissions or native dependencies, **unless upstream `main` already carries an unreleased bump**. Never bump for JS-only changes. The orchestrator says which PR in a batch carries the bump.
 - Pin new dependencies to an exact version, like their siblings (no `~` or `^`), and use the version that matches the Expo SDK in use.
 
 ## 5. Code quality
