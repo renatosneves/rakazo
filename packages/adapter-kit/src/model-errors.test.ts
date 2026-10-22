@@ -220,6 +220,57 @@ describe("provider availability classification", () => {
       { status: 401, message: "You have hit your ChatGPT usage limit." },
       false,
     ],
+    [
+      "observed Grok credit exhaustion",
+      new Error(
+        'xai API error (403): 403 "You have run out of credits or need a Grok subscription. Add credits at https://grok.com/?_s=usage or upgrade at https://grok.com/supergrok."',
+      ),
+      true,
+    ],
+    [
+      "observed Grok credit exhaustion on an assistant message",
+      {
+        stopReason: "error",
+        errorMessage:
+          'xai API error (403): 403 "You have run out of credits or need a Grok subscription."',
+      },
+      true,
+    ],
+    [
+      "structured Grok 403 credit exhaustion",
+      { status: 403, message: "You have run out of credits or need a Grok subscription." },
+      true,
+    ],
+    [
+      "Grok credit text without a 403",
+      new Error("You have run out of credits or need a Grok subscription."),
+      false,
+    ],
+    [
+      "HTTP 401 with Grok credit text",
+      { status: 401, message: "You have run out of credits or need a Grok subscription." },
+      false,
+    ],
+    [
+      "HTTP 400 with nested Grok credit text",
+      {
+        status: 400,
+        cause: { status: 403, message: "You have run out of credits or need a Grok subscription." },
+      },
+      false,
+    ],
+    ["generic xAI 403", new Error('xai API error (403): 403 "Forbidden"'), false],
+    [
+      "xAI 403 permission denied",
+      { status: 403, message: "The caller does not have permission to execute this request" },
+      false,
+    ],
+    [
+      "xAI invalid API key",
+      new Error('xai API error (400): 400 "Incorrect API key provided: xai-***"'),
+      false,
+    ],
+    ["xAI 401 authentication", { status: 401, message: "Unauthorized" }, false],
     ["quota exhaustion", { status: 402, message: "provider quota exhausted" }, true],
     ["plain status", new Error("503 provider unavailable"), true],
     ["HTTP server status", new Error("HTTP 500"), true],
