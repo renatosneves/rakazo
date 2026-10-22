@@ -13,7 +13,7 @@ These rules are added on top of the repository's own `AGENTS.md` and `CONTRIBUTI
   ```
 
   Every line must show Neves.
-- Force-push only your own PR branches, and only with `--force-with-lease`. Never push to `main` or `upstream-main`.
+- Force-push only your own PR branches, and only with `--force-with-lease`. The only thing you may push to `main` or `upstream-main` is an exact copy of `upstream/main` (section 2a). Never push your own commits there.
 
 ## 2. Branches and PRs
 
@@ -29,6 +29,70 @@ These rules are added on top of the repository's own `AGENTS.md` and `CONTRIBUTI
   ```
 
 - Keep each PR to one or two commits named `type(scope): summary`.
+
+## 2a. Branch housekeeping (start of every task)
+
+Upstream squash-merges PRs, so a merged branch is never an ancestor of `upstream/main`. Don't use `git branch --merged` to decide anything.
+
+1. Refresh:
+
+   ```bash
+   git fetch upstream main
+   git fetch origin --prune
+   ```
+
+2. Mirror upstream. The fork's `main` and `upstream-main` must both equal `upstream/main`:
+
+   ```bash
+   git log --oneline upstream/main..origin/main
+   git log --oneline upstream/main..origin/upstream-main
+   ```
+
+   - If both print nothing, push the mirror for each:
+     ```bash
+     git push --force-with-lease origin upstream/main:refs/heads/main
+     git push --force-with-lease origin upstream/main:refs/heads/upstream-main
+     ```
+   - If either prints commits, don't push. Report the commits to the orchestrator. Someone put work there, and a mirror push would delete it.
+
+3. Never merge a fork PR. Fork PRs are only for review. The real PR is the upstream one, and only the upstream maintainer merges it. A fork PR merged into `upstream-main` breaks the mirror.
+
+4. Find your branches whose work is merged upstream. A branch counts as merged only when **both** checks pass:
+   - its upstream PR shows as merged:
+     ```bash
+     gh pr list --repo elie222/rakazo --author renatosneves --state merged --json number,headRefName
+     ```
+     If `gh` isn't available, check the PR page on GitHub.
+   - applying it to `upstream/main` changes nothing:
+     ```bash
+     test "$(git merge-tree --write-tree upstream/main origin/<branch>)" = "$(git rev-parse upstream/main^{tree})" && echo merged
+     ```
+     If this prints nothing, upstream changed the code after the merge. Look at `git diff upstream/main...origin/<branch>` and say whether every change is already upstream. When unsure, keep the branch.
+
+5. Delete only branches that pass both checks and aren't protected. First save the SHA in your report, then delete:
+
+   ```bash
+   echo "<branch> $(git rev-parse origin/<branch>)"
+   git push origin --delete <branch>
+   ```
+
+   Anyone can restore a branch with `git push origin <sha>:refs/heads/<branch>`.
+
+6. Protected branches. Never delete or rewrite these:
+   - `main`, `upstream-main`, `fold7-apk`;
+   - any `claude/*` branch, which belongs to the orchestrator. `claude/project-thread-da55l3` holds this rules file;
+   - any branch with an open PR, on the fork or upstream;
+   - any branch you didn't create, unless the orchestrator names it.
+
+   List everything else that looks stale in your report, and don't delete it.
+
+7. Rebase open PR branches. For each of your branches with an open upstream PR:
+   - check whether it still merges cleanly: `git merge-tree --write-tree upstream/main origin/<branch>` exits 0;
+   - if it conflicts, or if upstream changed the same files since your last push, rebase it onto `upstream/main`;
+   - then run the full checks (section 9) and push with `--force-with-lease`;
+   - don't rebase a branch that merges cleanly just to move it forward, because that dismisses reviews for nothing.
+
+8. Never branch from or push to `fold7-apk` unless the orchestrator asks. It's Renato's test APK branch.
 
 ## 3. Before writing code
 
@@ -114,7 +178,13 @@ Stop that task. Don't improvise a different design. Note what you found, finish 
 
 ## 12. Report back to the orchestrator
 
-For each PR, report:
+Report the branch housekeeping first:
+- whether the mirrors were refreshed, or which commits blocked them;
+- each branch you deleted, with its SHA and upstream PR number;
+- the stale branches you kept, and why;
+- the branches you rebased.
+
+Then, for each PR, report:
 - the branch and head SHA;
 - the author check result;
 - the encoding checks result;
