@@ -865,6 +865,98 @@ describe("Pi runtime ordered model fallback", () => {
     expect(providerState.delay).not.toHaveBeenCalled();
   });
 
+  it("continues the turn on the configured backup after Grok runs out of credits", async () => {
+    const grokOutOfCredits =
+      'xai API error (403): 403 "You have run out of credits or need a Grok subscription. Add credits at https://grok.com/?_s=usage or upgrade at https://grok.com/supergrok."';
+    const grok = { ...model("xai", "grok-4.7", 32_768), reasoning: true };
+    const gpt = {
+      ...model("openai-codex", "gpt-6.1-sol", 32_768),
+      api: "openai-codex-responses" as const,
+      reasoning: true,
+    };
+    const claude = { ...model("anthropic", "claude-sonnet", 32_768), reasoning: true };
+    for (const candidate of [grok, gpt, claude]) {
+      providerState.models.set(
+        `${candidate.provider}/${candidate.id}`,
+        candidate as unknown as Record<string, unknown>,
+      );
+    }
+    const input = request([
+      { provider: gpt.provider, id: gpt.id, apiKey: "fake-codex-key", thinkingLevel: "low" },
+      { provider: claude.provider, id: claude.id, apiKey: "fake-claude-key" },
+    ]);
+    input.model = {
+      provider: grok.provider,
+      id: grok.id,
+      apiKey: "fake-xai-key",
+      reasoning: true,
+      thinkingLevel: "high",
+    } as AgentRunRequest["model"];
+    const executeTool = vi.mocked(input.executeTool!);
+    let grokCalls = 0;
+    let backupContext: { messages?: unknown[] } | undefined;
+    providerState.stream.mockImplementation(
+      (target: Model<"openai-completions">, context: { messages?: unknown[] }) => {
+        if (target.provider === grok.provider) {
+          grokCalls += 1;
+          if (grokCalls === 1) {
+            const call = {
+              type: "toolCall" as const,
+              id: "write-once",
+              name: "write_effect",
+              arguments: { value: "persist this once" },
+            };
+            return stream(target, message(target, [call], "toolUse"));
+          }
+          return stream(target, message(target, [], "error", grokOutOfCredits));
+        }
+        backupContext = context;
+        return stream(
+          target,
+          message(target, [{ type: "text", text: "Finished on GPT." }], "stop"),
+        );
+      },
+    );
+
+    const events = await run(input);
+
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    expect(
+      providerState.stream.mock.calls.map(
+        ([target]) => (target as Model<"openai-completions">).provider,
+      ),
+    ).toEqual([grok.provider, grok.provider, gpt.provider]);
+    expect(providerState.stream.mock.lastCall?.[2]).toMatchObject({
+      apiKey: "fake-codex-key",
+      reasoning: "low",
+    });
+    expect(JSON.stringify(backupContext?.messages)).toContain("write-once");
+    expect(JSON.stringify(backupContext?.messages)).toContain("persist this once");
+    expect(events.at(-1)).toEqual({ type: "done", text: "Finished on GPT." });
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "usage", provider: gpt.provider, model: gpt.id }),
+    );
+  });
+
+  it("stops on a genuine xAI 403 without trying the backup", async () => {
+    providerState.stream.mockImplementation((target: Model<"openai-completions">) =>
+      target.provider === primary.provider
+        ? stream(
+            target,
+            message(target, [], "error", 'xai API error (403): 403 "Forbidden: permission denied"'),
+          )
+        : stream(target, message(target, [{ type: "text", text: "backup answer" }], "stop")),
+    );
+
+    const events: AgentRuntimeEvent[] = [];
+    await expect(
+      run(request([{ provider: backupA.provider, id: backupA.id, apiKey: "backup-key" }]), events),
+    ).rejects.toThrow(/Forbidden: permission denied/);
+
+    expect(providerState.stream).toHaveBeenCalledTimes(1);
+    expect(events).not.toContainEqual({ type: "text", text: "backup answer" });
+  });
+
   it("retries a short usage window on the same model without a backup", async () => {
     providerState.stream
       .mockImplementationOnce(() =>

@@ -83,6 +83,13 @@ export function isRetryableProviderUnavailable(error: unknown): boolean {
   }
   // The ChatGPT subscription (Codex) runtime reports an exhausted usage window without a status.
   if (/you have hit your chatgpt usage limit/.test(text)) return true;
+  // xAI reports exhausted credits as HTTP 403 rather than 402. Pi formats it as "xai API error (403): ...".
+  if (
+    (statuses.has(403) || /\bapi error \(403\)/.test(text)) &&
+    /\byou have run out of credits or need a grok subscription\b/.test(text)
+  ) {
+    return true;
+  }
   if (
     [400, 401, 403].some((status) => statuses.has(status)) ||
     /\b(?:http(?:\s+status(?:\s+code)?)?|status(?:\s+code)?|error\s+code)\s*[:=]?\s*(?:400|401|403)\b/.test(
