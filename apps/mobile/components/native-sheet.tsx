@@ -6,6 +6,9 @@ import { isComposeViewAvailable } from "../lib/compose-available";
 import { useMobileTokens } from "../lib/native";
 
 const sheetViews = ["HostView", "ModalBottomSheetView", "RNHostView", "SlotView"];
+// Material 3 caps a bottom sheet at 640dp and centres it, but hosted content still lays out
+// at the window width, so on a wide window it must be narrowed to stay inside the sheet.
+const SHEET_MAX_WIDTH = 640;
 
 // Loading constructs native adapters, so even preloading must follow the view checks.
 let loadedSheet: ComponentType<BottomSheetProps> | null | undefined;
@@ -50,7 +53,7 @@ export function NativeSheet({
   label?: string;
 }) {
   const tokens = useMobileTokens();
-  const { height } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const closed = useRef(false);
   useEffect(() => {
@@ -92,7 +95,12 @@ export function NativeSheet({
       <View
         accessibilityViewIsModal
         accessibilityLabel={label}
-        style={{ maxHeight, height: expanded ? maxHeight : undefined }}
+        style={{
+          maxHeight,
+          height: expanded ? maxHeight : undefined,
+          width: Math.min(width, SHEET_MAX_WIDTH),
+          alignSelf: "center",
+        }}
       >
         <ScrollView style={{ flexGrow: 0 }} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
           {children}
