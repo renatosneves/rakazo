@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   appearance: "dark" as "light" | "dark",
   load: vi.fn(),
   platform: "android",
+  width: 400,
   sheet: vi.fn(),
   confirmDelete: vi.fn(),
   modal: vi.fn(),
@@ -106,7 +107,7 @@ vi.mock("react-native", () => ({
       return { remove: () => mocks.listeners.delete(name) };
     },
   },
-  useWindowDimensions: () => ({ height: 1000, width: 400 }),
+  useWindowDimensions: () => ({ height: 1000, width: mocks.width }),
   Modal: (props: { children: ReactNode }) => {
     mocks.modal(props);
     return createElement("dialog", null, props.children);
@@ -131,6 +132,7 @@ beforeEach(async () => {
   vi.clearAllMocks();
   mocks.missing = "";
   mocks.platform = "android";
+  mocks.width = 400;
   mocks.styles.length = 0;
   mocks.appearance = "dark";
   await loadComponents();
@@ -309,7 +311,12 @@ describe("native sheet behavior", () => {
         Error
       </RunErrorSheetContainer>,
     );
-    expect(mocks.styles).toContainEqual({ maxHeight: 852, height: undefined });
+    expect(mocks.styles).toContainEqual({
+      maxHeight: 852,
+      height: undefined,
+      width: 400,
+      alignSelf: "center",
+    });
     await act(async () =>
       root.render(
         <RunErrorSheetContainer expanded onClose={vi.fn()}>
@@ -317,7 +324,12 @@ describe("native sheet behavior", () => {
         </RunErrorSheetContainer>,
       ),
     );
-    expect(mocks.styles).toContainEqual({ maxHeight: 852, height: 852 });
+    expect(mocks.styles).toContainEqual({
+      maxHeight: 852,
+      height: 852,
+      width: 400,
+      alignSelf: "center",
+    });
   });
   it("reduces the scroll viewport above the keyboard and restores it on hide", async () => {
     await mount(
@@ -326,9 +338,33 @@ describe("native sheet behavior", () => {
       </NativeSheet>,
     );
     act(() => mocks.listeners.get("keyboardDidShow")?.({ endCoordinates: { height: 300 } }));
-    expect(mocks.styles).toContainEqual({ maxHeight: 552, height: undefined });
+    expect(mocks.styles).toContainEqual({
+      maxHeight: 552,
+      height: undefined,
+      width: 400,
+      alignSelf: "center",
+    });
     act(() => mocks.listeners.get("keyboardDidHide")?.({ endCoordinates: { height: 0 } }));
-    expect(mocks.styles.at(-1)).toEqual({ maxHeight: 852, height: undefined });
+    expect(mocks.styles.at(-1)).toEqual({
+      maxHeight: 852,
+      height: undefined,
+      width: 400,
+      alignSelf: "center",
+    });
+  });
+  it("keeps hosted content inside the 640dp sheet on a wide window", async () => {
+    mocks.width = 1000;
+    await mount(
+      <NativeSheet Sheet={Sheet} onClose={vi.fn()} label="Chat">
+        Actions
+      </NativeSheet>,
+    );
+    expect(mocks.styles).toContainEqual({
+      maxHeight: 852,
+      height: undefined,
+      width: 640,
+      alignSelf: "center",
+    });
   });
 });
 
