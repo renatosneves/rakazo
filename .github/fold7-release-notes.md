@@ -9,3 +9,5 @@ Extra features on top of upstream:
 - No pause between spoken sentences
 
 Already in upstream: split view, double tap to react, drop files, scroll to a just-sent message.
+
+Built 2026-10-24.
