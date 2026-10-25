@@ -5,6 +5,9 @@ export const RU_MESSAGES: Record<string, string> = {
   "Manage {provider}": "Управление: {provider}",
   "Add provider": "Добавить провайдера",
   "Choose a model": "Выберите модель",
+  "Share to": "Отправить в",
+  "{count} files": "Файлов: {count}",
+  "could not read": "не удалось прочитать",
   "Use 80 characters or fewer": "Не более 80 символов",
   "Could not update name": "Не удалось обновить имя",
   "{summary} Your backup models also failed.":
