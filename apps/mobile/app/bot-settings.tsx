@@ -37,6 +37,7 @@ import { glassHeaderOptions } from "../components/glass-title";
 import type { MenuPickerChoice } from "../components/menu-picker";
 import { MenuPicker, MenuPickerMenu } from "../components/menu-picker";
 import { NativeActionButton } from "../components/native-action-button";
+import { NativeSheet, useNativeSheet } from "../components/native-sheet";
 import { NativeSwitch } from "../components/native-switch";
 import { NativeSymbol } from "../components/native-symbol";
 import { ProfileEditDialog } from "../components/profile-edit-dialog";
@@ -86,6 +87,8 @@ export default function BotSettingsScreen() {
   const [color, setColor] = useState<string>(BOT_COLORS[0]);
   const [computerMode, setComputerMode] = useState<ComputerMode>("team");
   const [avatarOpen, setAvatarOpen] = useState(false);
+  // Android has no page sheet: a full-screen Modal ran under the status bar.
+  const avatarSheet = useNativeSheet();
   const [advancedOpen, setAdvancedOpen] = useState(focus === "model" || pickedModel !== undefined);
   const [modelKey, setModelKey] = useState("");
   const [thinkingLevel, setThinkingLevel] = useState("");
@@ -837,107 +840,211 @@ export default function BotSettingsScreen() {
         ) : null}
       </ScrollView>
       {avatarOpen ? (
-        <Modal
-          visible={avatarOpen}
-          animationType="slide"
-          presentationStyle="pageSheet"
-          onRequestClose={() => setAvatarOpen(false)}
-        >
-          <ScrollView
-            contentContainerStyle={{ padding: 24, gap: 16 }}
-            style={{ backgroundColor: tokens.background }}
+        avatarSheet ? (
+          <NativeSheet
+            Sheet={avatarSheet}
+            onClose={() => setAvatarOpen(false)}
+            label={t("Edit avatar")}
           >
-            <NativeActionButton label={t("Done")} onPress={() => setAvatarOpen(false)} />
-            {bot && isAvatarPhoto(color) ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setColor(avatarColor(bot.color))}
-                style={{ marginTop: 12 }}
-              >
-                <Text style={{ color: tokens.mutedForeground, fontSize: 15 }}>
-                  {t("Remove photo")}
-                </Text>
-              </Pressable>
-            ) : null}
-            <Text style={{ color: tokens.mutedForeground, marginTop: 16, fontSize: 14 }}>
-              {t("Color")}
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 10, paddingVertical: 8, paddingHorizontal: 4 }}
-              accessibilityRole="radiogroup"
-            >
-              {BOT_COLORS.map((option, index) => (
+            <View style={{ padding: 24, gap: 16 }}>
+              <NativeActionButton label={t("Done")} onPress={() => setAvatarOpen(false)} />
+              {bot && isAvatarPhoto(color) ? (
                 <Pressable
-                  key={option}
-                  accessibilityRole="radio"
-                  accessibilityLabel={t("Color {number}", { number: index + 1 })}
-                  accessibilityState={{ checked: avatarColor(color) === option }}
-                  onPress={() => setColor((current) => withAvatarColor(current, option))}
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor: option,
-                    borderWidth: 3,
-                    borderColor: avatarColor(color) === option ? tokens.foreground : "transparent",
-                  }}
-                />
-              ))}
-            </ScrollView>
-            {bot && !isAvatarPhoto(color) ? (
-              <>
-                <Text style={{ color: tokens.mutedForeground, marginTop: 16, fontSize: 14 }}>
-                  {t("Shape")}
-                </Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: 10, paddingVertical: 8, paddingHorizontal: 4 }}
-                  accessibilityRole="radiogroup"
+                  accessibilityRole="button"
+                  onPress={() => setColor(avatarColor(bot.color))}
+                  style={{ marginTop: 12 }}
                 >
+                  <Text style={{ color: tokens.mutedForeground, fontSize: 15 }}>
+                    {t("Remove photo")}
+                  </Text>
+                </Pressable>
+              ) : null}
+              <Text style={{ color: tokens.mutedForeground, marginTop: 16, fontSize: 14 }}>
+                {t("Color")}
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 10, paddingVertical: 8, paddingHorizontal: 4 }}
+                accessibilityRole="radiogroup"
+              >
+                {BOT_COLORS.map((option, index) => (
                   <Pressable
+                    key={option}
                     accessibilityRole="radio"
-                    accessibilityLabel={t("Default")}
-                    accessibilityState={{ checked: avatarShape(color) === null }}
-                    onPress={() => setColor((current) => avatarColor(current))}
+                    accessibilityLabel={t("Color {number}", { number: index + 1 })}
+                    accessibilityState={{ checked: avatarColor(color) === option }}
+                    onPress={() => setColor((current) => withAvatarColor(current, option))}
                     style={{
-                      padding: 4,
-                      borderRadius: 14,
-                      borderWidth: 2,
-                      borderColor: avatarShape(color) === null ? tokens.foreground : "transparent",
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: option,
+                      borderWidth: 3,
+                      borderColor:
+                        avatarColor(color) === option ? tokens.foreground : "transparent",
                     }}
+                  />
+                ))}
+              </ScrollView>
+              {bot && !isAvatarPhoto(color) ? (
+                <>
+                  <Text style={{ color: tokens.mutedForeground, marginTop: 16, fontSize: 14 }}>
+                    {t("Shape")}
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 10, paddingVertical: 8, paddingHorizontal: 4 }}
+                    accessibilityRole="radiogroup"
                   >
-                    <BotAvatar color={avatarColor(color)} identity={bot.id} size={36} />
-                  </Pressable>
-                  {Array.from({ length: BOT_AVATAR_SHAPE_COUNT }, (_, shape) => (
                     <Pressable
-                      key={shape}
                       accessibilityRole="radio"
-                      accessibilityLabel={t("Shape {number}", { number: shape + 1 })}
-                      accessibilityState={{ checked: avatarShape(color) === shape }}
-                      onPress={() => setColor((current) => withAvatarShape(current, shape))}
+                      accessibilityLabel={t("Default")}
+                      accessibilityState={{ checked: avatarShape(color) === null }}
+                      onPress={() => setColor((current) => avatarColor(current))}
                       style={{
                         padding: 4,
                         borderRadius: 14,
                         borderWidth: 2,
                         borderColor:
-                          avatarShape(color) === shape ? tokens.foreground : "transparent",
+                          avatarShape(color) === null ? tokens.foreground : "transparent",
                       }}
                     >
-                      <BotAvatar
-                        color={withAvatarShape(color, shape)}
-                        identity={bot.id}
-                        size={36}
-                      />
+                      <BotAvatar color={avatarColor(color)} identity={bot.id} size={36} />
                     </Pressable>
-                  ))}
-                </ScrollView>
-              </>
-            ) : null}
-          </ScrollView>
-        </Modal>
+                    {Array.from({ length: BOT_AVATAR_SHAPE_COUNT }, (_, shape) => (
+                      <Pressable
+                        key={shape}
+                        accessibilityRole="radio"
+                        accessibilityLabel={t("Shape {number}", { number: shape + 1 })}
+                        accessibilityState={{ checked: avatarShape(color) === shape }}
+                        onPress={() => setColor((current) => withAvatarShape(current, shape))}
+                        style={{
+                          padding: 4,
+                          borderRadius: 14,
+                          borderWidth: 2,
+                          borderColor:
+                            avatarShape(color) === shape ? tokens.foreground : "transparent",
+                        }}
+                      >
+                        <BotAvatar
+                          color={withAvatarShape(color, shape)}
+                          identity={bot.id}
+                          size={36}
+                        />
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </>
+              ) : null}
+            </View>
+          </NativeSheet>
+        ) : (
+          <Modal
+            visible={avatarOpen}
+            animationType="slide"
+            presentationStyle="pageSheet"
+            onRequestClose={() => setAvatarOpen(false)}
+          >
+            <ScrollView
+              contentContainerStyle={{ padding: 24, gap: 16 }}
+              style={{ backgroundColor: tokens.background }}
+            >
+              <NativeActionButton label={t("Done")} onPress={() => setAvatarOpen(false)} />
+              {bot && isAvatarPhoto(color) ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setColor(avatarColor(bot.color))}
+                  style={{ marginTop: 12 }}
+                >
+                  <Text style={{ color: tokens.mutedForeground, fontSize: 15 }}>
+                    {t("Remove photo")}
+                  </Text>
+                </Pressable>
+              ) : null}
+              <Text style={{ color: tokens.mutedForeground, marginTop: 16, fontSize: 14 }}>
+                {t("Color")}
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 10, paddingVertical: 8, paddingHorizontal: 4 }}
+                accessibilityRole="radiogroup"
+              >
+                {BOT_COLORS.map((option, index) => (
+                  <Pressable
+                    key={option}
+                    accessibilityRole="radio"
+                    accessibilityLabel={t("Color {number}", { number: index + 1 })}
+                    accessibilityState={{ checked: avatarColor(color) === option }}
+                    onPress={() => setColor((current) => withAvatarColor(current, option))}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: option,
+                      borderWidth: 3,
+                      borderColor:
+                        avatarColor(color) === option ? tokens.foreground : "transparent",
+                    }}
+                  />
+                ))}
+              </ScrollView>
+              {bot && !isAvatarPhoto(color) ? (
+                <>
+                  <Text style={{ color: tokens.mutedForeground, marginTop: 16, fontSize: 14 }}>
+                    {t("Shape")}
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ gap: 10, paddingVertical: 8, paddingHorizontal: 4 }}
+                    accessibilityRole="radiogroup"
+                  >
+                    <Pressable
+                      accessibilityRole="radio"
+                      accessibilityLabel={t("Default")}
+                      accessibilityState={{ checked: avatarShape(color) === null }}
+                      onPress={() => setColor((current) => avatarColor(current))}
+                      style={{
+                        padding: 4,
+                        borderRadius: 14,
+                        borderWidth: 2,
+                        borderColor:
+                          avatarShape(color) === null ? tokens.foreground : "transparent",
+                      }}
+                    >
+                      <BotAvatar color={avatarColor(color)} identity={bot.id} size={36} />
+                    </Pressable>
+                    {Array.from({ length: BOT_AVATAR_SHAPE_COUNT }, (_, shape) => (
+                      <Pressable
+                        key={shape}
+                        accessibilityRole="radio"
+                        accessibilityLabel={t("Shape {number}", { number: shape + 1 })}
+                        accessibilityState={{ checked: avatarShape(color) === shape }}
+                        onPress={() => setColor((current) => withAvatarShape(current, shape))}
+                        style={{
+                          padding: 4,
+                          borderRadius: 14,
+                          borderWidth: 2,
+                          borderColor:
+                            avatarShape(color) === shape ? tokens.foreground : "transparent",
+                        }}
+                      >
+                        <BotAvatar
+                          color={withAvatarShape(color, shape)}
+                          identity={bot.id}
+                          size={36}
+                        />
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </>
+              ) : null}
+            </ScrollView>
+          </Modal>
+        )
       ) : null}
     </>
   );
