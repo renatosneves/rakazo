@@ -12,7 +12,7 @@ export interface LiveNotificationSettings {
 }
 
 export const DEFAULT_LIVE_NOTIFICATION_SETTINGS: LiveNotificationSettings = {
-  liveConnection: false,
+  liveConnection: true,
   messages: true,
   scheduledTasks: true,
   needsAttention: true,
